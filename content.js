@@ -18,6 +18,51 @@
         strongDelimiter: '**',
         linkStyle: 'inlined',
         linkReferenceStyle: 'full'
+    }).use(TurndownPluginGfmService.gfm);
+
+    // Add a custom rule for YouMind's specific code block structure.
+    turndownService.addRule('youmindCodeBlock', {
+        filter: function (node, options) {
+            return (
+                node.nodeName === 'DIV' &&
+                node.classList.contains('react-renderer') &&
+                node.classList.contains('node-codeBlock')
+            );
+        },
+        replacement: function (content, node, options) {
+            const langElement = node.querySelector('.language-display span');
+            let language = '';
+            if (langElement) {
+                language = langElement.textContent.toLowerCase().replace(/\s/g, '');
+            }
+
+            const codeElement = node.querySelector('pre');
+            const code = codeElement ? codeElement.textContent : '';
+
+            return '\n\n' + options.fence + language + '\n' + code + '\n' + options.fence + '\n\n';
+        }
+    });
+
+    // Add a custom rule for images to remove the alt text.
+    turndownService.addRule('image', {
+        filter: 'img',
+        replacement: function (content, node) {
+            const src = node.getAttribute('src') || '';
+            return '![](' + src + ')';
+        }
+    });
+
+    // Add a custom rule to create tight lists by handling <p> inside <li>.
+    turndownService.addRule('tightLists', {
+        filter: function (node, options) {
+            return (
+                node.nodeName === 'P' &&
+                node.parentNode.nodeName === 'LI'
+            );
+        },
+        replacement: function (content) {
+            return content;
+        }
     });
 
     function sanitizeFilename(title) {
@@ -76,6 +121,13 @@
         if (request.action === "download_markdown") {
             const result = downloadMarkdown();
             sendResponse(result);
+        } else if (request.action === "get_markdown_content") {
+            const result = extractContentAsMarkdown();
+            if (result) {
+                sendResponse({ success: true, content: result.content });
+            } else {
+                sendResponse({ success: false, error: 'Content not found.' });
+            }
         }
         return true;
     });
